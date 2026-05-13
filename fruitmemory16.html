@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>水果記憶翻牌遊戲</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Microsoft JhengHei", sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #ffe29f, #ffa99f, #ff719a);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      background: rgba(255,255,255,0.95);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 15px;
+      color: #ff4f70;
+      font-size: 2.2rem;
+    }
+
+    .info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .info p {
+      font-size: 1.1rem;
+      font-weight: bold;
+      color: #444;
+    }
+
+    button {
+      background: #ff4f70;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: 0.3s;
+    }
+
+    button:hover {
+      background: #ff2d55;
+      transform: scale(1.05);
+    }
+
+    .game-board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      width: 100%;
+      aspect-ratio: 1/1;
+      perspective: 1000px;
+      cursor: pointer;
+    }
+
+    .card-inner {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.6s;
+    }
+
+    .card.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    .card-front,
+    .card-back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 18px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      backface-visibility: hidden;
+      font-size: 3rem;
+      user-select: none;
+    }
+
+    .card-front {
+      background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+      color: white;
+      font-size: 2rem;
+      font-weight: bold;
+    }
+
+    .card-back {
+      background: white;
+      transform: rotateY(180deg);
+      border: 4px solid #ffb347;
+      font-size: 5.5rem;
+    }
+
+    .matched .card-back {
+      background: #d4ffd4;
+      border-color: #52c41a;
+    }
+
+    .message {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 1.3rem;
+      color: #ff2d55;
+      font-weight: bold;
+    }
+
+    .hint {
+      margin-top: 12px;
+      text-align: center;
+      color: #666;
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 700px) {
+      .game-board {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🍉 16張水果記憶翻牌遊戲 🍍</h1>
+
+    <div class="info">
+      <p>步數：<span id="moves">0</span></p>
+      <button onclick="resetGame()">重新開始</button>
+    </div>
+
+    <div class="game-board" id="gameBoard"></div>
+
+    <div class="message" id="message"></div>
+    <div class="hint">
+      提示：若翻到兩張不同的卡片，不會自動翻回去，請再點擊卡片即可翻回。
+    </div>
+  </div>
+
+  <script>
+    const fruits = [
+      { name: '香蕉', emoji: '🍌' },
+      { name: '蘋果', emoji: '🍎' },
+      { name: '西瓜', emoji: '🍉' },
+      { name: '檸檬', emoji: '🍋' },
+      { name: '鳳梨', emoji: '🍍' },
+      { name: '藍莓', emoji: '🫐' },
+      { name: '木瓜', emoji: '🥭' },
+      { name: '釋迦', emoji: '🍈' }
+    ];
+
+    let cards = [];
+    let firstCard = null;
+    let secondCard = null;
+    let lockBoard = false;
+    let moves = 0;
+    let waitingFlipBack = false;
+
+    const gameBoard = document.getElementById('gameBoard');
+    const movesText = document.getElementById('moves');
+    const message = document.getElementById('message');
+
+    function setupGame() {
+      const pairCards = [...fruits, ...fruits]
+        .sort(() => Math.random() - 0.5)
+        .map((fruit, index) => ({
+          id: index,
+          fruit: fruit.name,
+          emoji: fruit.emoji,
+          matched: false
+        }));
+
+      cards = pairCards;
+      gameBoard.innerHTML = '';
+      moves = 0;
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      waitingFlipBack = false;
+      movesText.textContent = moves;
+      message.textContent = '';
+
+      cards.forEach(card => {
+        const cardElement = document.createElement('div');
+        cardElement.classList.add('card');
+        cardElement.dataset.id = card.id;
+        cardElement.dataset.fruit = card.fruit;
+
+        cardElement.innerHTML = `
+          <div class="card-inner">
+            <div class="card-front">${card.id + 1}</div>
+            <div class="card-back">${card.emoji}</div>
+          </div>
+        `;
+
+        cardElement.addEventListener('click', () => handleCardClick(cardElement, card));
+
+        gameBoard.appendChild(cardElement);
+      });
+    }
+
+    function handleCardClick(cardElement, card) {
+      // 如果有不配對的卡片等待翻回
+      if (waitingFlipBack) {
+        if (
+          cardElement === firstCard.element ||
+          cardElement === secondCard.element
+        ) {
+          firstCard.element.classList.remove('flipped');
+          secondCard.element.classList.remove('flipped');
+
+          firstCard = null;
+          secondCard = null;
+          waitingFlipBack = false;
+        }
+        return;
+      }
+
+      if (lockBoard) return;
+      if (cardElement.classList.contains('flipped')) return;
+      if (card.matched) return;
+
+      cardElement.classList.add('flipped');
+
+      if (!firstCard) {
+        firstCard = { element: cardElement, data: card };
+        return;
+      }
+
+      secondCard = { element: cardElement, data: card };
+      moves++;
+      movesText.textContent = moves;
+
+      checkMatch();
+    }
+
+    function checkMatch() {
+      const isMatch = firstCard.data.fruit === secondCard.data.fruit;
+
+      if (isMatch) {
+        firstCard.data.matched = true;
+        secondCard.data.matched = true;
+
+        firstCard.element.classList.add('matched');
+        secondCard.element.classList.add('matched');
+
+        resetTurn();
+        checkWin();
+      } else {
+        waitingFlipBack = true;
+        message.textContent = '❌ 不一樣！請點擊其中一張卡片翻回。';
+      }
+    }
+
+    function resetTurn() {
+      firstCard = null;
+      secondCard = null;
+      lockBoard = false;
+      waitingFlipBack = false;
+      message.textContent = '';
+    }
+
+    function checkWin() {
+      const allMatched = cards.every(card => card.matched);
+
+      if (allMatched) {
+        message.textContent = `🎉 恭喜完成遊戲！總共用了 ${moves} 步！`;
+      }
+    }
+
+    function resetGame() {
+      setupGame();
+    }
+
+    setupGame();
+  </script>
+</body>
+</html>
