@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>水果記憶翻牌遊戲</title>
+
+<style>
+body{
+    margin:0;
+    padding:20px;
+    font-family:Arial,sans-serif;
+    background:#fff3e0;
+    text-align:center;
+}
+
+h1{
+    color:#e65100;
+}
+
+#board{
+    max-width:1200px;
+    margin:20px auto;
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:12px;
+}
+
+.card{
+    aspect-ratio:1/1;
+    position:relative;
+    cursor:pointer;
+    perspective:1000px;
+}
+
+.inner{
+    width:100%;
+    height:100%;
+    position:relative;
+    transition:transform .5s;
+    transform-style:preserve-3d;
+}
+
+.card.flipped .inner{
+    transform:rotateY(180deg);
+}
+
+.front,.back{
+    position:absolute;
+    width:100%;
+    height:100%;
+    border-radius:18px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    backface-visibility:hidden;
+    box-shadow:0 4px 8px rgba(0,0,0,.2);
+}
+
+.front{
+    background:white;
+    transform:rotateY(180deg);
+    flex-direction:column;
+    border:4px solid #ffb74d;
+}
+
+.back{
+    background:#fb8c00;
+    color:white;
+    font-size:40px;
+    font-weight:bold;
+}
+
+.emoji{
+    font-size:70px;
+}
+
+.name{
+    font-size:20px;
+    font-weight:bold;
+    color:#6d4c41;
+}
+
+.matched .front{
+    background:#dcedc8;
+}
+
+button{
+    padding:12px 24px;
+    border:none;
+    border-radius:10px;
+    background:#f4511e;
+    color:white;
+    font-size:18px;
+    cursor:pointer;
+}
+
+#msg{
+    margin-top:15px;
+    font-size:24px;
+    color:#2e7d32;
+    font-weight:bold;
+}
+
+@media(max-width:900px){
+    #board{
+        grid-template-columns:repeat(4,1fr);
+    }
+}
+
+@media(max-width:600px){
+    #board{
+        grid-template-columns:repeat(3,1fr);
+    }
+
+    .emoji{
+        font-size:50px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<h1>🍓 水果記憶翻牌遊戲 🍍</h1>
+
+<button onclick="startGame()">重新開始</button>
+
+<div id="msg"></div>
+
+<div id="board"></div>
+
+<script>
+
+const fruits = [
+["🍎","蘋果"],
+["🍌","香蕉"],
+["🍇","葡萄"],
+["🍉","西瓜"],
+["🍓","草莓"],
+["🍒","櫻桃"],
+["🍍","鳳梨"],
+["🥝","奇異果"],
+["🍑","水蜜桃"],
+["🍐","梨子"],
+["🍋","檸檬"],
+["🍈","哈密瓜"],
+["🫐","藍莓"],
+["🥭","芒果"]
+];
+
+let cards = [];
+let selected = [];
+let waitingClose = [];
+
+function shuffle(array){
+    for(let i=array.length-1;i>0;i--){
+        const j=Math.floor(Math.random()*(i+1));
+        [array[i],array[j]]=[array[j],array[i]];
+    }
+}
+
+function startGame(){
+
+    document.getElementById("msg").textContent = "";
+
+    cards = [];
+    selected = [];
+    waitingClose = [];
+
+    let data = [];
+
+    fruits.forEach(f=>{
+        data.push({emoji:f[0],name:f[1]});
+        data.push({emoji:f[0],name:f[1]});
+    });
+
+    shuffle(data);
+
+    data.forEach((item,index)=>{
+        cards.push({
+            id:index+1,
+            emoji:item.emoji,
+            name:item.name,
+            flipped:false,
+            matched:false
+        });
+    });
+
+    render();
+}
+
+function render(){
+
+    const board = document.getElementById("board");
+    board.innerHTML = "";
+
+    cards.forEach((card,index)=>{
+
+        const div = document.createElement("div");
+        div.className = "card";
+
+        if(card.flipped){
+            div.classList.add("flipped");
+        }
+
+        if(card.matched){
+            div.classList.add("matched");
+        }
+
+        div.innerHTML = `
+            <div class="inner">
+                <div class="front">
+                    <div class="emoji">${card.emoji}</div>
+                    <div class="name">${card.name}</div>
+                </div>
+                <div class="back">${index+1}</div>
+            </div>
+        `;
+
+        div.addEventListener("click",()=>clickCard(index));
+
+        board.appendChild(div);
+    });
+}
+
+function clickCard(index){
+
+    const card = cards[index];
+
+    // 如果是等待手動翻回
+    if(waitingClose.length > 0){
+
+        if(waitingClose.includes(index)){
+
+            card.flipped = false;
+
+            waitingClose = waitingClose.filter(i=>i!==index);
+
+            render();
+
+            if(waitingClose.length === 0){
+                selected = [];
+                document.getElementById("msg").textContent = "";
+            }
+        }
+
+        return;
+    }
+
+    if(card.flipped || card.matched){
+        return;
+    }
+
+    if(selected.length >= 2){
+        return;
+    }
+
+    card.flipped = true;
+    selected.push(index);
+
+    render();
+
+    if(selected.length === 2){
+
+        const a = cards[selected[0]];
+        const b = cards[selected[1]];
+
+        if(a.name === b.name){
+
+            a.matched = true;
+            b.matched = true;
+
+            selected = [];
+
+            render();
+
+            const finished = cards.every(c=>c.matched);
+
+            if(finished){
+                document.getElementById("msg").textContent = "🎉 恭喜完成全部配對！";
+            }
+
+        }else{
+
+            waitingClose = [...selected];
+        }
+    }
+}
+
+startGame();
+
+</script>
+
+</body>
+</html>
